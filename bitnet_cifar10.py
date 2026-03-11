@@ -14,9 +14,8 @@ if __name__ == "__main__":
 
     # --- Hiperparámetros ---
     INPUT_DIM   = 3 * 32 * 32    # CIFAR-10: imágenes 32×32 RGB aplanadas
-    HIDDEN_DIM  = 512
+    HIDDEN_DIMS = [128, 256, 512, 512, 256, 128]
     NUM_CLASSES = 10
-    NUM_HIDDEN  = 4
     EPOCHS      = 30
     BATCH_SIZE  = 128
     LR          = 1e-3
@@ -42,8 +41,8 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,  num_workers=2)
     test_loader  = DataLoader(test_dataset,  batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
 
-    # --- Modelo: entrada(3072) → 4 capas ocultas(512) → salida(10) ---
-    model     = BitNet(INPUT_DIM, HIDDEN_DIM, NUM_CLASSES, num_hidden=NUM_HIDDEN).to(device)
+    # --- Modelo: 3072 → 128 → 256 → 512 → 512 → 256 → 128 → 10 ---
+    model     = BitNet(INPUT_DIM, HIDDEN_DIMS, NUM_CLASSES).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
     criterion = nn.CrossEntropyLoss()
@@ -55,9 +54,8 @@ if __name__ == "__main__":
         project="bitnet-cifar10",
         config={
             "input_dim":   INPUT_DIM,
-            "hidden_dim":  HIDDEN_DIM,
+            "hidden_dims": HIDDEN_DIMS,
             "num_classes": NUM_CLASSES,
-            "num_hidden":  NUM_HIDDEN,
             "epochs":      EPOCHS,
             "batch_size":  BATCH_SIZE,
             "lr":          LR,
@@ -69,7 +67,8 @@ if __name__ == "__main__":
     )
     wandb.watch(model, log="all", log_freq=200)
 
-    print(f"Arquitectura: {INPUT_DIM} → {HIDDEN_DIM}×{NUM_HIDDEN} → {NUM_CLASSES}")
+    arch_str = " → ".join(str(d) for d in [INPUT_DIM] + HIDDEN_DIMS + [NUM_CLASSES])
+    print(f"Arquitectura: {arch_str}")
     print(f"Parámetros totales: {total_params:,}")
     print(f"Dispositivo: {device}\n")
 

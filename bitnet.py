@@ -53,14 +53,25 @@ class BitLinear(nn.Linear):
 
 
 class BitNet(nn.Module):
-    """MLP fully connected usando capas BitLinear."""
+    """MLP fully connected usando capas BitLinear.
 
-    def __init__(self, input_dim, hidden_dim, output_dim, num_hidden=1):
+    Args:
+        input_dim:  dimensión de entrada
+        hidden_dims: int o lista de ints con las dimensiones ocultas
+        output_dim: dimensión de salida
+    """
+
+    def __init__(self, input_dim, hidden_dims, output_dim):
         super().__init__()
-        layers = [BitLinear(input_dim, hidden_dim), nn.ReLU()]
-        for _ in range(num_hidden):
-            layers += [BitLinear(hidden_dim, hidden_dim), nn.ReLU()]
-        layers.append(BitLinear(hidden_dim, output_dim))
+        if isinstance(hidden_dims, int):
+            hidden_dims = [hidden_dims]
+
+        dims = [input_dim] + hidden_dims + [output_dim]
+        layers = []
+        for i in range(len(dims) - 1):
+            layers.append(BitLinear(dims[i], dims[i + 1]))
+            if i < len(dims) - 2:  # ReLU en todas menos la última
+                layers.append(nn.ReLU())
         self.net = nn.Sequential(*layers)
 
     def forward(self, x):
