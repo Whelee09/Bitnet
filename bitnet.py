@@ -4,8 +4,6 @@ import torch.nn.functional as F
 
 
 class STESign(torch.autograd.Function):
-    """Straight-Through Estimator: forward Sign(x)→{-1,+1}, backward pasa sin modificarse."""
-
     @staticmethod
     def forward(ctx, weight):
         return torch.where(weight > 0, torch.ones_like(weight), -torch.ones_like(weight))
@@ -16,7 +14,6 @@ class STESign(torch.autograd.Function):
 
 
 def weight_quant(W):
-    """Cuantización 1-bit: W̃ = Sign(W − α), β = mean(|W|)."""
     alpha = W.mean()
     beta  = W.abs().mean().clamp(min=1e-8)
     W_binary = STESign.apply(W - alpha)
@@ -24,7 +21,6 @@ def weight_quant(W):
 
 
 def activation_quant(x, num_bits=8):
-    """Cuantización absmax b-bit: x̃ = Clip(x × Qb/γ, −Qb+ε, Qb−ε), γ = ||x||∞."""
     Qb = 2 ** (num_bits - 1) - 1
     eps = torch.finfo(x.dtype).eps
 
@@ -77,6 +73,7 @@ class BitNet(nn.Module):
 if __name__ == "__main__":
     from torch.utils.data import DataLoader
     from torchvision import datasets, transforms
+    import wandb
 
     torch.manual_seed(42)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -108,6 +105,24 @@ if __name__ == "__main__":
     criterion = nn.CrossEntropyLoss()
 
     total_params = sum(p.numel() for p in model.parameters())
+
+    # --- Wandb ---
+    wandb.init(
+        project="bitnet-mnist",
+        config={
+            "input_dim":   INPUT_DIM,
+            "hidden_dim":  HIDDEN_DIM,
+            "num_classes": NUM_CLASSES,
+            "num_hidden":  NUM_HIDDEN,
+            "epochs":      EPOCHS,
+            "batch_size":  BATCH_SIZE,
+            "lr":          LR,
+            "total_params": total_params,
+            "device":      str(device),
+        },
+    )
+    wandb.watch(model, log="all", log_freq=100)  # loguea gradientes y pesos
+
     print(f"Arquitectura: {INPUT_DIM} → {HIDDEN_DIM}×{NUM_HIDDEN} → {NUM_CLASSES}")
     print(f"Parámetros totales: {total_params:,}")
     print(f"Dispositivo: {device}\n")
@@ -149,9 +164,35 @@ if __name__ == "__main__":
                 test_total   += images.size(0)
 
         test_acc = 100.0 * test_correct / test_total
+
+        # Log a wandb
+        log_dict = {
+            "epoch":      epoch,
+            "train/loss":  train_loss / total,
+            "train/acc":   train_acc,
+            "test/acc":    test_acc,
+        }
+
+        # Loguear histogramas de pesos latentes vs cuantizados por capa
+        with torch.no_grad():
+            for name, module in model.named_modules():
+                if isinstance(module, BitLinear):
+                    w = module.weight
+                    w_q, beta = weight_quant(w)
+                    tag = name.replace(".", "/")
+                    log_dict[f"weights/{tag}/latent"]    = wandb.Histogram(w.cpu().numpy())
+                    log_dict[f"weights/{tag}/quantized"] = wandb.Histogram(w_q.cpu().numpy())
+                    log_dict[f"weights/{tag}/beta"]      = beta.item()
+                    # % de pesos que son +1 vs -1
+                    pct_pos = (w_q == 1).float().mean().item() * 100
+                    log_dict[f"weights/{tag}/pct_positive"] = pct_pos
+
+        wandb.log(log_dict)
+
         print(f"Epoch {epoch:2d}/{EPOCHS}  "
               f"train_loss={train_loss/total:.4f}  "
               f"train_acc={train_acc:.1f}%  "
               f"test_acc={test_acc:.1f}%")
 
+    wandb.finish()
     print("\nEntrenamiento completado.")
