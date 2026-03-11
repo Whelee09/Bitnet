@@ -56,20 +56,102 @@ class BitLinear(nn.Linear):
         return out
 
 
+class BitNet(nn.Module):
+    """MLP fully connected usando capas BitLinear."""
+
+    def __init__(self, input_dim, hidden_dim, output_dim, num_hidden=1):
+        super().__init__()
+        layers = [BitLinear(input_dim, hidden_dim), nn.ReLU()]
+        for _ in range(num_hidden):
+            layers += [BitLinear(hidden_dim, hidden_dim), nn.ReLU()]
+        layers.append(BitLinear(hidden_dim, output_dim))
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.net(x)
+
+
 # ─────────────────────────────────────────────
-# TEST
+# ENTRENAMIENTO CON MNIST
 # ─────────────────────────────────────────────
 if __name__ == "__main__":
+    from torch.utils.data import DataLoader
+    from torchvision import datasets, transforms
+
     torch.manual_seed(42)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    layer = BitLinear(64, 32)
-    x = torch.randn(4, 64, requires_grad=True)
+    # --- Hiperparámetros ---
+    INPUT_DIM   = 28 * 28       # MNIST: imágenes 28×28 aplanadas
+    HIDDEN_DIM  = 256
+    NUM_CLASSES = 10
+    NUM_HIDDEN  = 4             # 4 capas ocultas
+    EPOCHS      = 10
+    BATCH_SIZE  = 128
+    LR          = 1e-3
 
-    y = layer(x)
-    loss = y.sum()
-    loss.backward()
+    # --- Dataset MNIST ---
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.1307,), (0.3081,)),  # media y std de MNIST
+    ])
 
-    print("Output shape:", y.shape)
-    print("Grad en x shape:", x.grad.shape)
-    print("Grad en W shape:", layer.weight.grad.shape)
-    print("STE + BitLinear funcionando correctamente!")
+    train_dataset = datasets.MNIST(root="./data", train=True,  download=True, transform=transform)
+    test_dataset  = datasets.MNIST(root="./data", train=False, download=True, transform=transform)
+
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    test_loader  = DataLoader(test_dataset,  batch_size=BATCH_SIZE, shuffle=False)
+
+    # --- Modelo: entrada(784) → 4 capas ocultas(256) → salida(10) ---
+    model     = BitNet(INPUT_DIM, HIDDEN_DIM, NUM_CLASSES, num_hidden=NUM_HIDDEN).to(device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+    criterion = nn.CrossEntropyLoss()
+
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"Arquitectura: {INPUT_DIM} → {HIDDEN_DIM}×{NUM_HIDDEN} → {NUM_CLASSES}")
+    print(f"Parámetros totales: {total_params:,}")
+    print(f"Dispositivo: {device}\n")
+
+    # --- Entrenamiento ---
+    for epoch in range(1, EPOCHS + 1):
+        model.train()
+        train_loss = 0.0
+        correct    = 0
+        total      = 0
+
+        for images, labels in train_loader:
+            images = images.view(images.size(0), -1).to(device)  # aplanar 28×28 → 784
+            labels = labels.to(device)
+
+            logits = model(images)
+            loss   = criterion(logits, labels)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            train_loss += loss.item() * images.size(0)
+            correct    += (logits.argmax(dim=1) == labels).sum().item()
+            total      += images.size(0)
+
+        train_acc = 100.0 * correct / total
+
+        # --- Evaluación en test ---
+        model.eval()
+        test_correct = 0
+        test_total   = 0
+        with torch.no_grad():
+            for images, labels in test_loader:
+                images = images.view(images.size(0), -1).to(device)
+                labels = labels.to(device)
+                logits = model(images)
+                test_correct += (logits.argmax(dim=1) == labels).sum().item()
+                test_total   += images.size(0)
+
+        test_acc = 100.0 * test_correct / test_total
+        print(f"Epoch {epoch:2d}/{EPOCHS}  "
+              f"train_loss={train_loss/total:.4f}  "
+              f"train_acc={train_acc:.1f}%  "
+              f"test_acc={test_acc:.1f}%")
+
+    print("\nEntrenamiento completado.")
