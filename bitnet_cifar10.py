@@ -14,11 +14,11 @@ if __name__ == "__main__":
 
     # --- Hiperparámetros ---
     INPUT_DIM   = 3 * 32 * 32    # CIFAR-10: imágenes 32×32 RGB aplanadas
-    HIDDEN_DIMS = [128, 256, 512, 1024, 1024,2048]
+    HIDDEN_DIMS = [128, 256, 512, 1024]
     NUM_CLASSES = 10
     EPOCHS      = 30
     BATCH_SIZE  = 128
-    LR          = 1e-3
+    LR          = 1e-2
 
     # --- Dataset CIFAR-10 ---
     transform_train = transforms.Compose([
