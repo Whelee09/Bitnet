@@ -14,7 +14,7 @@ if __name__ == "__main__":
 
     # --- Hiperparámetros ---
     INPUT_DIM   = 3 * 32 * 32    # CIFAR-10: imágenes 32×32 RGB aplanadas
-    HIDDEN_DIMS = [128, 256, 512, 1024]
+    HIDDEN_DIMS = [128, 256, 512, 1024, 1024,2048]
     NUM_CLASSES = 10
     EPOCHS      = 30
     BATCH_SIZE  = 128
