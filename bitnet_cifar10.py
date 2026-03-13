@@ -14,7 +14,7 @@ if __name__ == "__main__":
 
     # --- Hiperparámetros ---
     INPUT_DIM   = 3 * 32 * 32    # CIFAR-10: imágenes 32×32 RGB aplanadas
-    HIDDEN_DIMS = [128, 256, 512, 1024, 512, 256, 128]
+    HIDDEN_DIMS = [128, 256, 512, 1024]
     NUM_CLASSES = 10
     EPOCHS      = 30
     BATCH_SIZE  = 128
@@ -41,7 +41,6 @@ if __name__ == "__main__":
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,  num_workers=2)
     test_loader  = DataLoader(test_dataset,  batch_size=BATCH_SIZE, shuffle=False, num_workers=2)
 
-    # --- Modelo: 3072 → 128 → 256 → 512 → 512 → 256 → 128 → 10 ---
     model     = BitNet(INPUT_DIM, HIDDEN_DIMS, NUM_CLASSES).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
