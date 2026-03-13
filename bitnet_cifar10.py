@@ -18,7 +18,7 @@ if __name__ == "__main__":
     NUM_CLASSES = 10
     EPOCHS      = 30
     BATCH_SIZE  = 128
-    LR          = 5e-3
+    LR          = 8e-4
 
     # --- Dataset CIFAR-10 ---
     transform_train = transforms.Compose([
